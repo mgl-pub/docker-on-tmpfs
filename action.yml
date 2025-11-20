@@ -24,21 +24,24 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Replace the current swap file
-      if: inputs.swap_size != 4 || inputs.swap_location != '/mnt/swapfile'
-      shell: bash
-      run: |
-        sudo swapoff /mnt/swapfile
+      - name: Replace the current swap file
+        if: inputs.swap_size != 4 || inputs.swap_location != '/mnt/swapfile'
+        shell: bash
+        run: |
+          # 如果 swap 文件存在就关闭，否则忽略错误
+          if [ -f "${{ inputs.swap_location }}" ]; then
+            sudo swapoff "${{ inputs.swap_location }}" || true
+          fi
+      
+          # 如果文件存在就删除
+          sudo rm -f "${{ inputs.swap_location }}"
+      
+          # 创建新的 swap 文件
+          sudo fallocate -l ${{ inputs.swap_size }}G "${{ inputs.swap_location }}"
+          sudo chmod 600 "${{ inputs.swap_location }}"
+          sudo mkswap "${{ inputs.swap_location }}"
+          sudo swapon "${{ inputs.swap_location }}"
 
-        sudo rm -v /mnt/swapfile
-
-        sudo fallocate -l ${{ inputs.swap_size }}G "${{ inputs.swap_location }}"
-
-        sudo chmod 600 "${{ inputs.swap_location }}"
-
-        sudo mkswap "${{ inputs.swap_location }}"
-
-        sudo swapon "${{ inputs.swap_location }}"
 
     - name: Show current memory and swap status
       shell: bash
