@@ -24,63 +24,39 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Verify swap file existence
-      shell: bash
-      run: |
-        if [ ! -f "${{ inputs.swap_location }}" ]; then
-          echo "Swap file ${{ inputs.swap_location }} does not exist. Creating it now..."
-          sudo fallocate -l ${{ inputs.swap_size }}G "${{ inputs.swap_location }}"
-          sudo chmod 600 "${{ inputs.swap_location }}"
-          sudo mkswap "${{ inputs.swap_location }}"
-          sudo swapon "${{ inputs.swap_location }}"
-        else
-          echo "Swap file ${{ inputs.swap_location }} already exists."
-        fi
-
     - name: Replace the current swap file
       if: inputs.swap_size != 4 || inputs.swap_location != '/mnt/swapfile'
       shell: bash
       run: |
-        echo "Replacing swap file at ${{ inputs.swap_location }}"
-        sudo swapoff "${{ inputs.swap_location }}" || echo "Swap was not active or file doesn't exist."
-        sudo rm -f "${{ inputs.swap_location }}"
+        sudo swapoff /mnt/swapfile
+
+        sudo rm -v /mnt/swapfile
+
         sudo fallocate -l ${{ inputs.swap_size }}G "${{ inputs.swap_location }}"
+
         sudo chmod 600 "${{ inputs.swap_location }}"
+
         sudo mkswap "${{ inputs.swap_location }}"
+
         sudo swapon "${{ inputs.swap_location }}"
 
     - name: Show current memory and swap status
       shell: bash
       run: |
-        echo "Displaying memory and swap status:"
         sudo free -h
         echo
         sudo swapon --show
 
-    - name: Verify Docker directory exists
+    - name: Mount a tmpfs over /var/lib/docker
       shell: bash
       run: |
         if [ ! -d "/var/lib/docker" ]; then
           echo "Directory '/var/lib/docker' not found"
           exit 1
-        else
-          echo "'/var/lib/docker' directory exists."
         fi
 
-    - name: Mount a tmpfs over /var/lib/docker
-      shell: bash
-      run: |
-        echo "Mounting tmpfs on /var/lib/docker with size ${{ inputs.tmpfs_size }}G"
         sudo mount -t tmpfs -o size=${{ inputs.tmpfs_size }}G tmpfs /var/lib/docker
 
-    - name: Restart Docker service
-      shell: bash
-      run: |
-        echo "Restarting Docker service..."
         sudo systemctl restart docker
 
-    - name: Verify Docker tmpfs mount
-      shell: bash
-      run: |
-        echo "Checking Docker tmpfs mount:"
         sudo df -h | grep docker
